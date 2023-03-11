@@ -2,10 +2,7 @@
 // Created by loulfy on 24/02/2023.
 //
 
-#ifndef LER_SYS_H
-#define LER_SYS_H
-
-#include "ler.hpp"
+#include "ler_sys.hpp"
 
 #ifdef _WIN32
     #include <Windows.h>
@@ -36,5 +33,3 @@ namespace ler
         return {};
     }
 }
-
-#endif //LER_SYS_H

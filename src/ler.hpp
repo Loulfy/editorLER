@@ -17,23 +17,11 @@
 #include <imgui_impl_vulkan.h>
 #include <imgui_impl_glfw.h>
 
-#include <set>
-#include <map>
-#include <span>
-#include <list>
-#include <mutex>
-#include <memory>
-#include <limits>
-#include <fstream>
-#include <iostream>
-#include <functional>
-#include <filesystem>
-namespace fs = std::filesystem;
+#include "ler_sys.hpp"
+#include "ler_spv.hpp"
 
 namespace ler
 {
-    std::string getHomeDir();
-
     struct VulkanContext
     {
         vk::Instance instance;
@@ -102,6 +90,69 @@ namespace ler
         std::vector<TexturePtr> images;
     };
 
+    struct DescriptorSetLayoutData
+    {
+        uint32_t set_number = 0;
+        VkDescriptorSetLayoutCreateInfo create_info;
+        std::vector<vk::DescriptorSetLayoutBinding> bindings;
+    };
+
+    struct Shader
+    {
+        vk::UniqueShaderModule shaderModule;
+        vk::ShaderStageFlagBits stageFlagBits = {};
+        vk::PipelineVertexInputStateCreateInfo pvi;
+        std::vector<vk::PushConstantRange> pushConstants;
+        std::map<uint32_t, DescriptorSetLayoutData> descriptorMap;
+        std::vector<vk::VertexInputBindingDescription> bindingDesc;
+        std::vector<vk::VertexInputAttributeDescription> attributeDesc;
+    };
+
+    using ShaderPtr = std::shared_ptr<Shader>;
+
+    struct DescriptorAllocator
+    {
+        std::vector<vk::DescriptorSetLayoutBinding> layoutBinding;
+        vk::UniqueDescriptorSetLayout layout;
+        vk::UniqueDescriptorPool pool;
+    };
+
+    struct PipelineInfo
+    {
+        vk::Extent2D extent;
+        vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList;
+        vk::PolygonMode polygonMode = vk::PolygonMode::eFill;
+        vk::SampleCountFlagBits sampleCount = vk::SampleCountFlagBits::e1;
+        uint32_t textureCount = 1;
+        bool writeDepth = true;
+        uint32_t subPass = 0;
+    };
+
+    class BasePipeline
+    {
+    public:
+
+        void reflectPipelineLayout(vk::Device device, const std::vector<ShaderPtr>& shaders);
+        vk::DescriptorSet createDescriptorSet(vk::Device& device, uint32_t set);
+
+        vk::UniquePipeline handle;
+        vk::UniquePipelineLayout pipelineLayout;
+        vk::PipelineBindPoint bindPoint = vk::PipelineBindPoint::eGraphics;
+        std::unordered_map<uint32_t,DescriptorAllocator> descriptorAllocMap;
+    };
+
+    using PipelinePtr = std::shared_ptr<BasePipeline>;
+
+    class GraphicsPipeline : public BasePipeline
+    {
+
+    };
+
+    class ComputePipeline : public BasePipeline
+    {
+
+    };
+
     class LerDevice
     {
     public:
@@ -113,15 +164,26 @@ namespace ler
         BufferPtr createBuffer(uint32_t byteSize, vk::BufferUsageFlags usages = vk::BufferUsageFlagBits(), bool staging = false);
         void uploadBuffer(BufferPtr& staging, const void* src, uint32_t byteSize);
         void copyBuffer(BufferPtr& src, BufferPtr& dst, uint64_t byteSize = VK_WHOLE_SIZE);
+        static void copyBufferToTexture(vk::CommandBuffer& cmd, const BufferPtr& buffer, const TexturePtr& texture);
 
         // Texture
         TexturePtr createTexture(vk::Format format, const vk::Extent2D& extent, vk::SampleCountFlagBits sampleCount, bool isRenderTarget = false);
         TexturePtr createTextureFromNative(vk::Image image, vk::Format format, const vk::Extent2D& extent);
+        vk::UniqueSampler createSampler(const vk::SamplerAddressMode& addressMode, bool filter);
+        TexturePtr loadTextureFromFile(const fs::path& path);
         static vk::ImageAspectFlags guessImageAspectFlags(vk::Format format);
 
         // RenderPass
         RenderPass createDefaultRenderPass(vk::Format surfaceFormat);
         std::vector<FrameBuffer> createFrameBuffers(const RenderPass& renderPass, const SwapChain& swapChain);
+        RenderPass createSimpleRenderPass(vk::Format surfaceFormat);
+        FrameBuffer createFrameBuffer(const RenderPass& renderPass, const vk::Extent2D& extent);
+        static std::vector<vk::ClearValue> clearRenderPass(const RenderPass& renderPass);
+
+        // Pipeline
+        ShaderPtr createShader(const fs::path& path);
+        PipelinePtr createGraphicsPipeline(const RenderPass& renderPass, const std::vector<ShaderPtr>& shaders, const PipelineInfo& info);
+        PipelinePtr createComputePipeline(const ShaderPtr& shader);
 
         // Execution
         vk::CommandBuffer getCommandBuffer();
@@ -132,7 +194,9 @@ namespace ler
     private:
 
         void populateTexture(const TexturePtr& texture, vk::Format format, const vk::Extent2D& extent, vk::SampleCountFlagBits sampleCount, bool isRenderTarget = false);
+        static uint32_t formatSize(VkFormat format);
         vk::Format chooseDepthFormat();
+        static std::vector<char> loadBinaryFromFile(const fs::path& path);
 
         VulkanContext m_context;
         std::mutex m_mutexQueue;
@@ -160,6 +224,7 @@ namespace ler
         ~LerApp();
         void run();
         [[nodiscard]] LerDevicePtr getDevice() const { return m_engine; }
+        [[nodiscard]] const RenderPass& getRenderPass() const { return m_renderPass; }
         void show(const std::function<void()>& delegate);
 
         // Non-copyable and non-movable
@@ -184,6 +249,9 @@ namespace ler
         vk::PhysicalDevice m_physicalDevice;
         vk::UniquePipelineCache m_pipelineCache;
         LerDevicePtr m_engine;
+        SwapChain m_swapChain;
+        RenderPass m_renderPass;
+        vk::UniqueDescriptorPool m_imguiPool;
 
         std::list<std::function<void()>> m_printer;
     };

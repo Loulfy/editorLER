@@ -182,6 +182,13 @@ namespace ler
 
         // Create Engine Instance
         m_engine = std::make_shared<LerDevice>(context);
+
+        m_swapChain = createSwapChain(m_surface.get(), WIDTH, HEIGHT);
+        m_renderPass = m_engine->createDefaultRenderPass(m_swapChain.format);
+
+        // PREPARE ImGui
+        m_imguiPool = ImguiImpl::createPool(m_engine);
+        ImguiImpl::init(m_engine, m_imguiPool.get(), m_renderPass, m_window);
     }
 
     LerApp::~LerApp()
@@ -286,35 +293,19 @@ namespace ler
         uint32_t swapChainIndex = 0;
         auto queue = m_device->getQueue(m_graphicsQueueFamily, 0);
         auto presentSemaphore = m_device->createSemaphoreUnique({});
-        auto swapChain = createSwapChain(m_surface.get(), WIDTH, HEIGHT);
-        auto renderPass = m_engine->createDefaultRenderPass(swapChain.format);
-        auto frameBuffers = m_engine->createFrameBuffers(renderPass, swapChain);
+        auto frameBuffers = m_engine->createFrameBuffers(m_renderPass, m_swapChain);
 
         // PREPARE RenderPass
-        std::array<float, 4> color = {1.f, 1.f, 1.f, 1.f};
-        std::vector<vk::ClearValue> clearValues;
-        for(const auto& attachment : renderPass.attachments)
-        {
-            auto aspect = LerDevice::guessImageAspectFlags(attachment.format);
-            if(aspect == vk::ImageAspectFlagBits::eColor)
-                clearValues.emplace_back(vk::ClearColorValue(color));
-            else
-                clearValues.emplace_back(vk::ClearDepthStencilValue(1.0f, 0));
-        }
-
-        vk::Viewport viewport(0, 0, static_cast<float>(swapChain.extent.width), static_cast<float>(swapChain.extent.height), 0, 1.0f);
-        vk::Rect2D renderArea(vk::Offset2D(), swapChain.extent);
-
-        // PREPARE ImGui
-        auto imguiPool = ImguiImpl::createPool(m_engine);
-        ImguiImpl::init(m_engine, imguiPool.get(), renderPass, m_window);
+        auto clearValues = LerDevice::clearRenderPass(m_renderPass);
+        vk::Viewport viewport(0, 0, static_cast<float>(m_swapChain.extent.width), static_cast<float>(m_swapChain.extent.height), 0, 1.0f);
+        vk::Rect2D renderArea(vk::Offset2D(), m_swapChain.extent);
 
         while(!glfwWindowShouldClose(m_window))
         {
             glfwPollEvents();
 
             // Acquire next frame
-            result = m_device->acquireNextImageKHR(swapChain.handle.get(), std::numeric_limits<uint64_t>::max(), presentSemaphore.get(), vk::Fence(), &swapChainIndex);
+            result = m_device->acquireNextImageKHR(m_swapChain.handle.get(), std::numeric_limits<uint64_t>::max(), presentSemaphore.get(), vk::Fence(), &swapChainIndex);
             assert(result == vk::Result::eSuccess);
 
             // Render
@@ -322,11 +313,13 @@ namespace ler
 
             // Begin RenderPass
             vk::RenderPassBeginInfo beginInfo;
-            beginInfo.setRenderPass(renderPass.handle.get());
+            beginInfo.setRenderPass(m_renderPass.handle.get());
             beginInfo.setFramebuffer(frameBuffers[swapChainIndex].handle.get());
             beginInfo.setRenderArea(renderArea);
             beginInfo.setClearValues(clearValues);
             cmd.beginRenderPass(beginInfo, vk::SubpassContents::eInline);
+            cmd.setScissor(0, 1, &renderArea);
+            cmd.setViewport(0, 1, &viewport);
             cmd.nextSubpass(vk::SubpassContents::eInline);
             cmd.nextSubpass(vk::SubpassContents::eInline);
 
@@ -344,7 +337,7 @@ namespace ler
             presentInfo.setWaitSemaphoreCount(1);
             presentInfo.setPWaitSemaphores(&presentSemaphore.get());
             presentInfo.setSwapchainCount(1);
-            presentInfo.setPSwapchains(&swapChain.handle.get());
+            presentInfo.setPSwapchains(&m_swapChain.handle.get());
             presentInfo.setPImageIndices(&swapChainIndex);
 
             result = queue.presentKHR(&presentInfo);
