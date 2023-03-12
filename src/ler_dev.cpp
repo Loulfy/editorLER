@@ -79,7 +79,10 @@ namespace ler
 
     void LerDevice::copyBuffer(BufferPtr& src, BufferPtr& dst, uint64_t byteSize)
     {
-
+        vk::CommandBuffer cmd = getCommandBuffer();
+        vk::BufferCopy copyRegion(0, 0, byteSize);
+        cmd.copyBuffer(src->handle, dst->handle, copyRegion);
+        submitAndWait(cmd);
     }
 
     void LerDevice::copyBufferToTexture(vk::CommandBuffer& cmd, const BufferPtr& buffer, const TexturePtr& texture)
@@ -612,7 +615,7 @@ namespace ler
         assert(module.generator == SPV_REFLECT_GENERATOR_KHRONOS_GLSLANG_REFERENCE_FRONT_END);
 
         shader->stageFlagBits = static_cast<vk::ShaderStageFlagBits>(module.shader_stage);
-        //log::info("Reflect Shader Stage {}", vk::to_string(handle->stageFlagBits));
+        log::debug("Reflect Shader Stage {}", vk::to_string(shader->stageFlagBits));
 
         // Input Variables
         result = spvReflectEnumerateInputVariables(&module, &count, nullptr);
@@ -632,7 +635,7 @@ namespace ler
 
                 uint32_t binding = guessVertexInputBinding(in->name);
                 shader->attributeDesc.emplace_back(in->location, binding, static_cast<vk::Format>(in->format), 0);
-                //log::info("location = {}, binding = {}, name = {}", in->location, binding, in->name);
+                log::debug("location = {}, binding = {}, name = {}", in->location, binding, in->name);
                 if(!availableBinding.contains(binding))
                 {
                     shader->bindingDesc.emplace_back(binding, 0, vk::VertexInputRate::eVertex);
@@ -689,7 +692,7 @@ namespace ler
                 binding.descriptorCount = set->bindings[i]->count;
                 binding.descriptorType = static_cast<vk::DescriptorType>(set->bindings[i]->descriptor_type);
                 binding.stageFlags = shader->stageFlagBits;
-                //log::info("set = {}, binding = {}, count = {:02}, type = {}", set->set, binding.binding, binding.descriptorCount, vk::to_string(binding.descriptorType));
+                log::debug("set = {}, binding = {}, count = {:02}, type = {}", set->set, binding.binding, binding.descriptorCount, vk::to_string(binding.descriptorType));
             }
             shader->descriptorMap.insert({set->set, desc});
         }

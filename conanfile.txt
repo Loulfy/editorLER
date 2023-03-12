@@ -2,6 +2,7 @@
 glfw/3.3.8
 stb/cci.20220909
 glm/cci.20230113
+spdlog/1.11.0
 assimp/5.2.2
 vulkan-memory-allocator/3.0.1
 entt/3.11.1

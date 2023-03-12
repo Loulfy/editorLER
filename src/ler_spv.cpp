@@ -4,6 +4,7 @@
 
 #include "ler_spv.hpp"
 #include "ler_sys.hpp"
+#include "ler_log.hpp"
 
 #include <glslang/Public/ResourceLimits.h>
 #include <glslang/Public/ShaderLang.h>
@@ -82,7 +83,7 @@ namespace ler
 
         if(!success)
         {
-            std::cout << shader.getInfoLog() << std::endl;
+            log::error(shader.getInfoLog());
             return {};
         }
 
@@ -93,7 +94,7 @@ namespace ler
 
         if(!success)
         {
-            std::cout << program.getInfoLog() << std::endl;
+            log::error(program.getInfoLog());
             return {};
         }
 
@@ -104,7 +105,7 @@ namespace ler
         options.optimizeSize = true;
         glslang::GlslangToSpv(*program.getIntermediate(shader.getStage()), spv, &logger, &options);
         if(!logger.getAllMessages().empty())
-            std::cout << logger.getAllMessages() << std::endl;
+            log::error(logger.getAllMessages());
         return spv;
     }
 
@@ -139,7 +140,7 @@ namespace ler
             if(fs::exists(f) && fs::last_write_time(f) > entry.last_write_time())
                 continue;
 
-            std::cout << "Compile " << entry.path().string() << std::endl;
+            log::warn("Compile {}", entry.path().string());
             compileFile(entry.path(), f);
         }
     }

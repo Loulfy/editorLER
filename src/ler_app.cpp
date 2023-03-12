@@ -67,14 +67,14 @@ namespace ler
 
         // Pick First GPU
         m_physicalDevice = m_instance->enumeratePhysicalDevices().front();
-        std::cout << "GPU: " << m_physicalDevice.getProperties().deviceName << std::endl;
+        log::info("GPU: {}", m_physicalDevice.getProperties().deviceName);
 
         std::set<std::string> supportedExtensionSet;
         for(auto& extProp : m_physicalDevice.enumerateDeviceExtensionProperties())
             supportedExtensionSet.insert(extProp.extensionName);
 
         bool supportRayTracing = supportedExtensionSet.contains(VK_KHR_RAY_QUERY_EXTENSION_NAME);
-        std::cout << "Support Ray Tracing: " << std::boolalpha << supportRayTracing << std::endl;
+        log::info("Support Ray Tracing: {}", supportRayTracing);
 
         if(supportRayTracing)
         {
@@ -115,7 +115,7 @@ namespace ler
         };
 
         for(auto& q : queueCreateInfos)
-            std::cout << "Queue Family " << q.queueFamilyIndex << ": " << vk::to_string(queueFamilies[q.queueFamilyIndex].queueFlags) << std::endl;
+            log::info("Queue Family {}: {}", q.queueFamilyIndex, vk::to_string(queueFamilies[q.queueFamilyIndex].queueFlags));
 
         // Create Device
         vk::DeviceCreateInfo deviceInfo;
@@ -273,11 +273,12 @@ namespace ler
         createInfo.setPresentMode(presentMode);
         createInfo.setClipped(true);
 
-        std::cout << "SwapChain: Images(" << backBufferCount
-        << "), Extent(" << extent.width << "x" << extent.height
-        << "), Format(" << vk::to_string(surfaceFormat.format)
-        << "), Present(" << vk::to_string(presentMode) << ")"
-        << std::endl;
+        log::info("SwapChain: Images({}), Extent({}x{}), Format({}), Present({})",
+            backBufferCount,
+            extent.width, extent.height,
+            vk::to_string(surfaceFormat.format),
+            vk::to_string(presentMode)
+        );
 
         SwapChain swapChain;
         swapChain.format = surfaceFormat.format;

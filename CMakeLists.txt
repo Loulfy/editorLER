@@ -45,13 +45,19 @@ set(IMGUI
 set(LER
     "src/ler.hpp"
     "src/common.hpp"
+    "src/ler_log.hpp"
     "src/ler_sys.hpp"
+    "src/ler_dev.hpp"
     "src/ler_spv.hpp"
+    "src/ler_env.hpp"
     "src/ler_app.cpp"
     "src/ler_dev.cpp"
     "src/ler_gui.cpp"
     "src/ler_sys.cpp"
     "src/ler_spv.cpp"
+    "src/ler_env.cpp"
+    "src/ler_arc.hpp"
+    "src/ler_arc.cpp"
     "src/format.cpp"
 )
 
