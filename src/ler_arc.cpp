@@ -3,107 +3,68 @@
 //
 
 #include "ler_arc.hpp"
+#include "ler_log.hpp"
 
-namespace ler {
-
-//------------------------------------------------------------------------------
-ArcBall::ArcBall(const glm::vec3& center, float radius, const glm::mat4& screenToTCS) :
-    mCenter(center),
-    mRadius(radius),
-    mScreenToTCS(screenToTCS)
+namespace ler
 {
-  // glm uses the following format for quaternions: w,x,y,z.
-  //        w,    x,    y,    z
-  glm::quat qOne(1.0, 0.0, 0.0, 0.0);
-  glm::vec3 vZero(0.0, 0.0, 0.0);
+    void ArcCamera::updateMatrices()
+    {
+        m_proj = glm::perspective(glm::radians(m_fov), m_viewport.x/m_viewport.y, 0.01f, 10000.f);
+        m_view = glm::lookAt(m_position, m_target, worldUp);
+    }
 
-  mVDown    = vZero;
-  mVNow     = vZero;
-  mQDown    = qOne;
-  mQNow     = qOne;
+    float sgn(double v)
+    {
+        return (v < 0.f) ? -1.f : ((v > 0.f) ? 1.f : 0.f);
+    }
+
+    void ArcCamera::mouseCallback(int button, int action)
+    {
+        m_active = action == 1;
+    }
+
+    void ArcCamera::motionCallback(const glm::vec2& pos)
+    {
+        if(!m_active)
+        {
+            m_last = pos;
+            return;
+        }
+
+        glm::vec4 position(m_position, 1);
+        glm::vec4 pivot(m_target, 1);
+
+        float deltaAngleX = (2 * M_PI / m_viewport.x); // a movement from left to right = 2*PI = 360 deg
+        float deltaAngleY = (M_PI / m_viewport.y);  // a movement from top to bottom = PI = 180 deg
+
+        float cosAngle = glm::dot(glm::normalize(getViewDirection()), getRightVector());
+        if (cosAngle * sgn(deltaAngleY) > 0.99f)
+            deltaAngleY = 0;
+        /*if (cosAngle < -0.99f)
+            deltaAngleY = M_PI;*/
+
+        float xAngle = (m_last.x - pos.x) * deltaAngleX;
+        float yAngle = (m_last.y - pos.y) * deltaAngleY;
+
+        glm::mat4x4 rotationMatrixX(1.0f);
+        rotationMatrixX = glm::rotate(rotationMatrixX, xAngle, worldUp);
+        position = (rotationMatrixX * (position - pivot)) + pivot;
+
+        glm::mat4x4 rotationMatrixY(1.0f);
+        rotationMatrixY = glm::rotate(rotationMatrixY, yAngle, getRightVector());
+        m_position = (rotationMatrixY * (position - pivot)) + pivot;
+
+        m_last = pos;
+        updateMatrices();
+    }
+
+    void ArcCamera::scrollCallback(const glm::vec2& offset)
+    {
+        m_fov = std::max(0.001f, m_fov * ((offset.y > 0) ? 1.1f : 0.9f));
+        if (m_fov < 1.0f)
+            m_fov = 1.0f;
+        if (m_fov > 70.0f)
+            m_fov = 70.0f;
+        updateMatrices();
+    }
 }
-
-//------------------------------------------------------------------------------
-ArcBall::~ArcBall()
-{
-}
-
-//------------------------------------------------------------------------------
-glm::vec3 ArcBall::mouseOnSphere(const glm::vec3& tscMouse)
-{
-  glm::vec3 ballMouse;
-
-  // (m - C) / R
-  ballMouse.x = (tscMouse.x - mCenter.x) / mRadius;
-  ballMouse.y = (tscMouse.y - mCenter.y) / mRadius;
-
-  float mag = glm::dot(ballMouse, ballMouse);
-  if (mag > 1.0)
-  {
-    // Since we are outside of the sphere, map to the visible boundary of
-    // the sphere.
-    ballMouse *= 1.0 / sqrtf(mag);
-    ballMouse.z = 0.0;
-  }
-  else
-  {
-    // We are not at the edge of the sphere, we are inside of it.
-    // Essentially, we are normalizing the vector by adding the missing z
-    // component.
-    ballMouse.z = sqrtf(1.0 - mag);
-  }
-
-  return ballMouse;
-}
-
-//------------------------------------------------------------------------------
-void ArcBall::beginDrag(const glm::vec2& msc)
-{
-  // The next two lines are usually a part of end drag. But end drag introduces
-  // too much statefullness, so we are shortcircuiting it.
-  mQDown      = mQNow;
-
-  // Normal 'begin' code.
-  mVDown      = (mScreenToTCS * glm::vec4(msc.x, msc.y, 0.0f, 1.0));
-}
-
-//------------------------------------------------------------------------------
-void ArcBall::drag(const glm::vec2& msc)
-{
-  // Regular drag code to follow...
-  mVNow       = (mScreenToTCS * glm::vec4(msc.x, msc.y, 0.0, 1.0));
-  mVSphereFrom= mouseOnSphere(mVDown);
-  mVSphereTo  = mouseOnSphere(mVNow);
-
-  // Construct a quaternion from two points on the unit sphere.
-  mQDrag = quatFromUnitSphere(mVSphereFrom, mVSphereTo);
-  mQNow = mQDrag * mQDown;
-
-  // Perform complex conjugate
-  glm::quat q = mQNow;
-  q.x = -q.x;
-  q.y = -q.y;
-  q.z = -q.z;
-  q.w =  q.w;
-  mMatNow = glm::mat4_cast(q);
-}
-
-//------------------------------------------------------------------------------
-glm::quat ArcBall::quatFromUnitSphere(const glm::vec3& from, const glm::vec3& to)
-{
-  glm::quat q;
-  q.x = from.y*to.z - from.z*to.y;
-  q.y = from.z*to.x - from.x*to.z;
-  q.z = from.x*to.y - from.y*to.x;
-  q.w = from.x*to.x + from.y*to.y + from.z*to.z;
-  return q;
-}
-
-//------------------------------------------------------------------------------
-glm::mat4 ArcBall::getTransformation() const
-{
-  return mMatNow;
-}
-
-
-} // namespace CPM_ARC_BALL_NS

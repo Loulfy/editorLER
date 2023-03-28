@@ -19,7 +19,10 @@ namespace ler
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
         m_window = glfwCreateWindow(WIDTH, HEIGHT, "LER", nullptr, nullptr);
-        //glfwSetKeyCallback(window, glfw_key_callback);
+        glfwSetWindowUserPointer(m_window, this);
+        glfwSetKeyCallback(m_window, glfw_key_callback);
+        glfwSetScrollCallback(m_window, glfw_scroll_callback);
+        glfwSetMouseButtonCallback(m_window, glfw_mouse_callback);
         //glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
         uint32_t count;
@@ -301,6 +304,8 @@ namespace ler
         vk::Viewport viewport(0, 0, static_cast<float>(m_swapChain.extent.width), static_cast<float>(m_swapChain.extent.height), 0, 1.0f);
         vk::Rect2D renderArea(vk::Offset2D(), m_swapChain.extent);
 
+        double x, y;
+
         while(!glfwWindowShouldClose(m_window))
         {
             glfwPollEvents();
@@ -311,6 +316,14 @@ namespace ler
 
             // Render
             cmd = m_engine->getCommandBuffer();
+
+            // Update Camera
+            if(isCursorLock())
+            {
+                glfwGetCursorPos(m_window, &x, &y);
+                for(auto& ctrl : m_controller)
+                    ctrl->motionCallback(glm::vec2(x, y));
+            }
 
             // Begin RenderPass
             vk::RenderPassBeginInfo beginInfo;
@@ -348,8 +361,105 @@ namespace ler
         ImguiImpl::clean();
     }
 
+    void LerApp::glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+    {
+        if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        if(key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        auto app = static_cast<LerApp*>(glfwGetWindowUserPointer(window));
+        for(auto& ctrl : app->m_controller)
+            ctrl->keyboardCallback(key, action, 0.002);
+    }
+
+    void LerApp::glfw_mouse_callback(GLFWwindow* window, int button, int action, int mods)
+    {
+        auto app = static_cast<LerApp*>(glfwGetWindowUserPointer(window));
+        for(auto& ctrl : app->m_controller)
+            ctrl->mouseCallback(button, action);
+    }
+
+    void LerApp::glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+    {
+        auto app = static_cast<LerApp*>(glfwGetWindowUserPointer(window));
+        for(auto& ctrl : app->m_controller)
+            ctrl->scrollCallback(glm::vec2(xoffset, yoffset));
+    }
+
     void LerApp::show(const std::function<void()>& delegate)
     {
         m_printer.push_back(delegate);
+    }
+
+    void MeshViewer::init(LerDevicePtr& device)
+    {
+        m_renderTarget = device->createRenderTarget(vk::Extent2D(720, 480));
+        m_meshRenderer.init(device, m_renderTarget->renderPass);
+        m_boxRenderer.init(device, m_renderTarget->renderPass);
+        m_camera.setViewportSize(720, 480);
+
+        auto texture = m_renderTarget->frameBuffer.images.front();
+        m_sampler = device->createSampler(vk::SamplerAddressMode::eClampToEdge, true);
+        m_ds = ImGui_ImplVulkan_AddTexture(static_cast<VkSampler>(m_sampler.get()), static_cast<VkImageView>(texture->view.get()), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+
+    void MeshViewer::switchMesh(const BatchedMesh& batch, int id)
+    {
+        const auto& mesh = batch.meshes[id];
+        glm::vec3 center = (mesh.bMax + mesh.bMin) * 0.5f;
+        float vFov = glm::radians(45.f);
+        float ratio = 2 * std::tan( vFov / 2 );
+        float size = mesh.bMax.y * 2;
+        float Z = size / ratio;
+
+        m_camera.setPointOfView(center);
+        m_camera.setEyeDistance(Z);
+        m_camera.updateMatrices();
+
+        m_id = id;
+    }
+
+    void MeshViewer::display(LerDevicePtr& device, BatchedMesh& batch)
+    {
+        bool open = true;
+        ImGui::Begin("Mesh Viewer", &open, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::ImageButton((ImTextureID)m_ds, ImVec2(720, 480));
+        ImGui::SetItemUsingMouseWheel();
+        ImVec2 mousePositionAbsolute = ImGui::GetMousePos();
+        ImVec2 screenPositionAbsolute = ImGui::GetItemRectMin();
+        auto mousePositionRelative = glm::vec2(mousePositionAbsolute.x - screenPositionAbsolute.x, mousePositionAbsolute.y - screenPositionAbsolute.y);
+
+        if(ImGui::IsItemClicked(ImGuiMouseButton_Left))
+            m_camera.mouseCallback(0, 1);
+        if(ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+            m_camera.mouseCallback(0, 0);
+
+        if(ImGui::IsItemHovered())
+        {
+            float wheel = ImGui::GetIO().MouseWheel;
+            m_camera.motionCallback(mousePositionRelative);
+            if(wheel != 0)
+                m_camera.scrollCallback(glm::vec2(wheel));
+        }
+
+        int max = static_cast<int>(batch.meshes.size()-1);
+        if(ImGui::SliderInt("MeshId", &m_id, 0, max))
+            switchMesh(batch, m_id);
+        ImGui::Text("Max Mesh: %zu", batch.meshes.size());
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        ImGui::End();
+
+        m_constant.view = m_camera.getViewMatrix();
+        m_constant.proj = m_camera.getProjMatrix();
+        m_constant.proj[1][1] *= -1;
+
+        auto cmd = device->getCommandBuffer();
+        m_renderTarget->beginRenderPass(cmd);
+        m_meshRenderer.update(m_constant);
+        m_meshRenderer.render(cmd, batch, m_id);
+        m_boxRenderer.update(m_constant);
+        m_boxRenderer.render(cmd, batch, m_id);
+        cmd.endRenderPass();
+        device->submitAndWait(cmd);
     }
 }

@@ -58,7 +58,12 @@ set(LER
     "src/ler_env.cpp"
     "src/ler_arc.hpp"
     "src/ler_arc.cpp"
+    "src/ler_cam.hpp"
+    "src/ler_cam.cpp"
+    "src/ler_rdr.hpp"
+    "src/ler_rdr.cpp"
     "src/format.cpp"
+    "src/imfilebrowser.hpp"
 )
 
 add_executable(editorLER src/main.cpp ${LER} ${IMGUI})

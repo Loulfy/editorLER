@@ -140,7 +140,7 @@ namespace ler
             if(fs::exists(f) && fs::last_write_time(f) > entry.last_write_time())
                 continue;
 
-            log::warn("Compile {}", entry.path().string());
+            log::warn("Compile {}", f.make_preferred().string());
             compileFile(entry.path(), f);
         }
     }

@@ -77,10 +77,10 @@ namespace ler
         }
     }
 
-    void LerDevice::copyBuffer(BufferPtr& src, BufferPtr& dst, uint64_t byteSize)
+    void LerDevice::copyBuffer(BufferPtr& src, BufferPtr& dst, uint64_t byteSize, uint64_t dstOffset)
     {
         vk::CommandBuffer cmd = getCommandBuffer();
-        vk::BufferCopy copyRegion(0, 0, byteSize);
+        vk::BufferCopy copyRegion(0, dstOffset, byteSize);
         cmd.copyBuffer(src->handle, dst->handle, copyRegion);
         submitAndWait(cmd);
     }
@@ -576,9 +576,8 @@ namespace ler
         return frameBuffer;
     }
 
-    std::vector<vk::ClearValue> LerDevice::clearRenderPass(const RenderPass& renderPass)
+    std::vector<vk::ClearValue> LerDevice::clearRenderPass(const RenderPass& renderPass, const std::array<float, 4>& color)
     {
-        std::array<float, 4> color = {1.f, 1.f, 1.f, 1.f};
         std::vector<vk::ClearValue> clearValues;
         for(const auto& attachment : renderPass.attachments)
         {
@@ -589,6 +588,30 @@ namespace ler
                 clearValues.emplace_back(vk::ClearDepthStencilValue(1.0f, 0));
         }
         return clearValues;
+    }
+
+    RenderTargetPtr LerDevice::createRenderTarget(const vk::Extent2D& extent)
+    {
+        auto renderTarget = std::make_shared<RenderTarget>();
+        renderTarget->renderPass = createSimpleRenderPass(vk::Format::eR8G8B8A8Unorm);
+        renderTarget->frameBuffer = createFrameBuffer(renderTarget->renderPass, extent);
+        renderTarget->clearValues = ler::LerDevice::clearRenderPass(renderTarget->renderPass, ler::Color::Gray);
+        renderTarget->viewport = vk::Viewport(0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height), 0, 1.0f);
+        renderTarget->renderArea = vk::Rect2D(vk::Offset2D(), extent);
+        renderTarget->extent = extent;
+        return renderTarget;
+    }
+
+    void RenderTarget::beginRenderPass(vk::CommandBuffer& cmd)
+    {
+        vk::RenderPassBeginInfo beginInfo;
+        beginInfo.setRenderPass(renderPass.handle.get());
+        beginInfo.setFramebuffer(frameBuffer.handle.get());
+        beginInfo.setRenderArea(renderArea);
+        beginInfo.setClearValues(clearValues);
+        cmd.beginRenderPass(beginInfo, vk::SubpassContents::eInline);
+        cmd.setScissor(0, 1, &renderArea);
+        cmd.setViewport(0, 1, &viewport);
     }
 
     uint32_t guessVertexInputBinding(const char* name)
@@ -804,7 +827,7 @@ namespace ler
         pr.setDepthBiasConstantFactor(0.f);
         pr.setDepthBiasClamp(0.f);
         pr.setDepthBiasSlopeFactor(0.f);
-        pr.setLineWidth(1.f);
+        pr.setLineWidth(info.lineWidth);
 
         // DEPTH & STENCIL STATE
         vk::PipelineDepthStencilStateCreateInfo pds;

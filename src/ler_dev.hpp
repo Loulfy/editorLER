@@ -8,9 +8,17 @@
 #define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 #include <vulkan/vulkan.hpp>
 #include <vk_mem_alloc.h>
+#include "common.hpp"
 
 namespace ler
 {
+    struct Color
+    {
+        static constexpr std::array<float, 4> White = {1.f, 1.f, 1.f, 1.f};
+        static constexpr std::array<float, 4> Gray = {0.45f, 0.55f, 0.6f, 1.f};
+        static constexpr std::array<float, 4> Magenta = {1.f, 0.f, 1.f, 1.f};
+    };
+
     struct VulkanContext
     {
         vk::Instance instance;
@@ -79,6 +87,20 @@ namespace ler
         std::vector<TexturePtr> images;
     };
 
+    struct RenderTarget
+    {
+        RenderPass renderPass;
+        FrameBuffer frameBuffer;
+        vk::Viewport viewport;
+        vk::Rect2D renderArea;
+        std::vector<vk::ClearValue> clearValues;
+        vk::Extent2D extent;
+
+        void beginRenderPass(vk::CommandBuffer& cmd);
+    };
+
+    using RenderTargetPtr = std::shared_ptr<RenderTarget>;
+
     struct DescriptorSetLayoutData
     {
         uint32_t set_number = 0;
@@ -112,8 +134,9 @@ namespace ler
         vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList;
         vk::PolygonMode polygonMode = vk::PolygonMode::eFill;
         vk::SampleCountFlagBits sampleCount = vk::SampleCountFlagBits::e1;
-        uint32_t textureCount = 1;
+        uint32_t textureCount = 0;
         bool writeDepth = true;
+        float lineWidth = 1.f;
         uint32_t subPass = 0;
     };
 
@@ -152,7 +175,7 @@ namespace ler
         // Buffer
         BufferPtr createBuffer(uint32_t byteSize, vk::BufferUsageFlags usages = vk::BufferUsageFlagBits(), bool staging = false);
         void uploadBuffer(BufferPtr& staging, const void* src, uint32_t byteSize);
-        void copyBuffer(BufferPtr& src, BufferPtr& dst, uint64_t byteSize = VK_WHOLE_SIZE);
+        void copyBuffer(BufferPtr& src, BufferPtr& dst, uint64_t byteSize = VK_WHOLE_SIZE, uint64_t dstOffset = 0);
         static void copyBufferToTexture(vk::CommandBuffer& cmd, const BufferPtr& buffer, const TexturePtr& texture);
 
         // Texture
@@ -167,7 +190,10 @@ namespace ler
         std::vector<FrameBuffer> createFrameBuffers(const RenderPass& renderPass, const SwapChain& swapChain);
         RenderPass createSimpleRenderPass(vk::Format surfaceFormat);
         FrameBuffer createFrameBuffer(const RenderPass& renderPass, const vk::Extent2D& extent);
-        static std::vector<vk::ClearValue> clearRenderPass(const RenderPass& renderPass);
+        static std::vector<vk::ClearValue> clearRenderPass(const RenderPass& renderPass, const std::array<float, 4>& color = Color::White);
+
+        // RenderTarget
+        RenderTargetPtr createRenderTarget(const vk::Extent2D& extent);
 
         // Pipeline
         ShaderPtr createShader(const fs::path& path);
