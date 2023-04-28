@@ -12,10 +12,12 @@
 #include <mutex>
 #include <memory>
 #include <limits>
+#include <utility>
 #include <fstream>
 #include <iostream>
 #include <functional>
 #include <filesystem>
+#include <memory_resource>
 namespace fs = std::filesystem;
 
 #endif //LER_COMMON_H

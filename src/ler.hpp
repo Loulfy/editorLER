@@ -13,6 +13,7 @@
 #include "ler_cam.hpp"
 #include "ler_arc.hpp"
 #include "ler_rdr.hpp"
+#include "ler_res.hpp"
 
 #define GLFW_INCLUDE_NONE // Do not include any OpenGL/Vulkan headers
 #include <GLFW/glfw3.h>
@@ -99,6 +100,9 @@ namespace ler
         VkDescriptorSet m_ds;
         ArcCamera m_camera;
         int m_id = 0;
+        int m_own = 0;
+
+        static int counter;
     };
 }
 

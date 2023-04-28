@@ -94,6 +94,9 @@ namespace ler
              return queueFamily.queueCount > 0 && queueFamily.queueFlags & vk::QueueFlagBits::eGraphics;
         });
 
+        auto props = m_physicalDevice.getProperties();
+        log::debug("MaxTextureArrayLayers: {}", props.limits.maxImageArrayLayers);
+
         m_graphicsQueueFamily = std::distance(queueFamilies.begin(), family);
         m_transferQueueFamily = UINT32_MAX;
 
@@ -192,6 +195,10 @@ namespace ler
         // PREPARE ImGui
         m_imguiPool = ImguiImpl::createPool(m_engine);
         ImguiImpl::init(m_engine, m_imguiPool.get(), m_renderPass, m_window);
+
+        // Mount default directories
+        FileSystemService::Get().mount(StdFileSystem::Create(ASSETS_DIR));
+        FileSystemService::Get().mount(StdFileSystem::Create(CACHED_DIR));
     }
 
     LerApp::~LerApp()
@@ -338,7 +345,7 @@ namespace ler
             cmd.nextSubpass(vk::SubpassContents::eInline);
 
             ImguiImpl::begin();
-            ImGui::ShowDemoWindow();
+            //ImGui::ShowDemoWindow();
             for(auto& print : m_printer)
                 print();
             ImguiImpl::end(cmd);
@@ -391,6 +398,7 @@ namespace ler
         m_printer.push_back(delegate);
     }
 
+    int MeshViewer::counter = 0;
     void MeshViewer::init(LerDevicePtr& device)
     {
         m_renderTarget = device->createRenderTarget(vk::Extent2D(720, 480));
@@ -401,6 +409,9 @@ namespace ler
         auto texture = m_renderTarget->frameBuffer.images.front();
         m_sampler = device->createSampler(vk::SamplerAddressMode::eClampToEdge, true);
         m_ds = ImGui_ImplVulkan_AddTexture(static_cast<VkSampler>(m_sampler.get()), static_cast<VkImageView>(texture->view.get()), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        static int counter = 0;
+        m_own = counter;
+        ++counter;
     }
 
     void MeshViewer::switchMesh(const BatchedMesh& batch, int id)
@@ -422,7 +433,9 @@ namespace ler
     void MeshViewer::display(LerDevicePtr& device, BatchedMesh& batch)
     {
         bool open = true;
-        ImGui::Begin("Mesh Viewer", &open, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::PushID(m_own);
+        std::string t = "Mesh Viewer"+std::to_string(m_own);
+        ImGui::Begin(t.c_str(), &open, ImGuiWindowFlags_AlwaysAutoResize);
         ImGui::ImageButton((ImTextureID)m_ds, ImVec2(720, 480));
         ImGui::SetItemUsingMouseWheel();
         ImVec2 mousePositionAbsolute = ImGui::GetMousePos();
@@ -448,6 +461,7 @@ namespace ler
         ImGui::Text("Max Mesh: %zu", batch.meshes.size());
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
         ImGui::End();
+        ImGui::PopID();
 
         m_constant.view = m_camera.getViewMatrix();
         m_constant.proj = m_camera.getProjMatrix();

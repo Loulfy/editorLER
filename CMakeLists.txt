@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 project(editorLER)
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 set(SPIRV_REFLECT_EXAMPLES OFF)
 set(SPIRV_REFLECT_EXECUTABLE OFF)
 set(SPIRV_REFLECT_STATIC_LIB ON)
@@ -62,6 +63,8 @@ set(LER
     "src/ler_cam.cpp"
     "src/ler_rdr.hpp"
     "src/ler_rdr.cpp"
+    "src/ler_res.hpp"
+    "src/ler_res.cpp"
     "src/format.cpp"
     "src/imfilebrowser.hpp"
 )

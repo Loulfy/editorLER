@@ -17,8 +17,8 @@ namespace ler
         info.lineWidth = 2.f;
 
         std::vector<ler::ShaderPtr> shaders;
-        shaders.push_back(device->createShader(ASSETS_DIR / "aabb.vert.spv"));
-        shaders.push_back(device->createShader(ASSETS_DIR / "aabb.frag.spv"));
+        shaders.push_back(device->createShader("aabb.vert.spv"));
+        shaders.push_back(device->createShader("aabb.frag.spv"));
         m_pipeline = device->createGraphicsPipeline(renderPass, shaders, info);
     }
 
@@ -38,8 +38,8 @@ namespace ler
         info.polygonMode = vk::PolygonMode::eLine;
 
         std::vector<ler::ShaderPtr> shaders;
-        shaders.emplace_back(device->createShader(ler::ASSETS_DIR / "mesh.vert.spv"));
-        shaders.emplace_back(device->createShader(ler::ASSETS_DIR / "mesh.frag.spv"));
+        shaders.emplace_back(device->createShader("mesh.vert.spv"));
+        shaders.emplace_back(device->createShader("mesh.frag.spv"));
         m_pipeline = device->createGraphicsPipeline(renderPass, shaders, info);
     }
 

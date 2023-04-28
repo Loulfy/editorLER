@@ -4,6 +4,7 @@
 
 #include "ler_env.hpp"
 #include "ler_log.hpp"
+#include "ler_sys.hpp"
 
 namespace ler
 {
@@ -86,7 +87,10 @@ namespace ler
         unsigned int postProcess = aiProcessPreset_TargetRealtime_Fast;
         postProcess |= aiProcess_ConvertToLeftHanded;
         postProcess |= aiProcess_GenBoundingBoxes;
-        const aiScene* aiScene = importer.ReadFile(path.string(), postProcess);
+        // TODO: finish scene import
+        //const aiScene* aiScene = importer.ReadFile(path.string(), postProcess);
+        const auto blob = FileSystemService::Get().readFile(path);
+        const aiScene* aiScene = importer.ReadFileFromMemory(blob.data(), blob.size(), postProcess, path.string().c_str());
         if(aiScene == nullptr || aiScene->mNumMeshes < 0)
             return false;
 

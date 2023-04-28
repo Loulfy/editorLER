@@ -196,7 +196,7 @@ namespace ler
         RenderTargetPtr createRenderTarget(const vk::Extent2D& extent);
 
         // Pipeline
-        ShaderPtr createShader(const fs::path& path);
+        ShaderPtr createShader(const fs::path& path) const;
         PipelinePtr createGraphicsPipeline(const RenderPass& renderPass, const std::vector<ShaderPtr>& shaders, const PipelineInfo& info);
         PipelinePtr createComputePipeline(const ShaderPtr& shader);
 

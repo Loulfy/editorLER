@@ -111,12 +111,15 @@ namespace ler
 
     void compileFile(const fs::path& input, const fs::path& output)
     {
-        std::ifstream fin(input);
+        /*std::ifstream fin(input);
         std::stringstream src;
         src << fin.rdbuf();
-        fin.close();
+        fin.close();*/
 
-        auto spv = compileGlslToSpv(src.str(), input.filename().string());
+        const auto blob = FileSystemService::Get().readFile(input);
+        std::string src(blob.begin(), blob.end());
+
+        auto spv = compileGlslToSpv(src, input.filename().string());
 
         if(spv.empty())
             return;
@@ -129,19 +132,26 @@ namespace ler
 
     void shaderAutoCompile()
     {
-        for (const auto& entry : fs::directory_iterator(ASSETS_DIR))
+        fs::create_directory(CACHED_DIR);
+        auto& fs = FileSystemService::Get();
+        std::vector<fs::path> entries;
+        fs.enumerates(entries);
+        for(const auto& entry : entries)
+        //for (const auto& entry : fs::directory_iterator(ASSETS_DIR))
         {
-            auto res = convertShaderExtension(entry.path().extension());
+            auto res = convertShaderExtension(entry.extension());
             if(!res.has_value())
                 continue;
 
-            fs::path f = entry.path();
+            fs::path f = CACHED_DIR / entry.filename();
             f.concat(".spv");
-            if(fs::exists(f) && fs::last_write_time(f) > entry.last_write_time())
+            //if(fs::exists(f) && fs::last_write_time(f) > entry.last_write_time())
+                //continue;
+            if(fs::exists(f) && fs::last_write_time(f) > fs.last_write_time(entry))
                 continue;
 
             log::warn("Compile {}", f.make_preferred().string());
-            compileFile(entry.path(), f);
+            compileFile(entry, f);
         }
     }
 }

@@ -5,7 +5,9 @@ glm/cci.20230113
 spdlog/1.11.0
 assimp/5.2.2
 vulkan-memory-allocator/3.0.1
+bshoshany-thread-pool/3.3.0
 entt/3.11.1
+miniz/3.0.2
 
 [generators]
 cmake

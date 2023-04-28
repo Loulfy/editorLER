@@ -278,7 +278,11 @@ namespace ler
         if(path.extension() == ".ktx" || path.extension() == ".dds")
             throw std::runtime_error("Can't load image with extension " + path.extension().string());
 
-        unsigned char* image = stbi_load(path.string().c_str(), &w, &h, &c, STBI_rgb_alpha);
+        auto blob = FileSystemService::Get().readFile(path);
+        auto buff = reinterpret_cast<stbi_uc*>(blob.data());
+        unsigned char* image = stbi_load_from_memory(buff, static_cast<int>(blob.size()), &w, &h, &c, STBI_rgb_alpha);
+        //deprecated
+        //unsigned char* image = stbi_load(path.string().c_str(), &w, &h, &c, STBI_rgb_alpha);
         size_t imageSize = w * h * 4;
 
         auto staging = createBuffer(imageSize, vk::BufferUsageFlags(), true);
@@ -622,10 +626,10 @@ namespace ler
         throw std::runtime_error("Vertex Input Attribute not reserved");
     }
 
-    ShaderPtr LerDevice::createShader(const fs::path& path)
+    ShaderPtr LerDevice::createShader(const fs::path& path) const
     {
         auto shader = std::make_shared<Shader>();
-        auto bytecode = loadBinaryFromFile(path);
+        auto bytecode = FileSystemService::Get().readFile(path);
         vk::ShaderModuleCreateInfo shaderInfo;
         shaderInfo.setCodeSize(bytecode.size());
         shaderInfo.setPCode(reinterpret_cast<const uint32_t*>(bytecode.data()));
